@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{% block title %}Cricket AI Predictor{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <div class="cricket-ball"></div>
+      <span>Cricket AI Predictor</span>
+    </div>
+    <div class="nav-links">
+      <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Predict</a>
+      <a href="/simulate" class="nav-link {% if request.path == '/simulate' %}active{% endif %}">Simulate</a>
+      <a href="/model-info" class="nav-link {% if request.path == '/model-info' %}active{% endif %}">Model Info</a>
+    </div>
+  </div>
+</nav>
+
+<!-- CONTENT -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- SHARED SCRIPTS -->
+<script>
+  // ── Shared utility functions available on all pages ──────────
+  window.API_BASE = "";   // same-origin Flask server
+
+  async function apiPost(endpoint, body) {
+    const res = await fetch(API_BASE + endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server error");
+    return data;
+  }
+
+  async function apiGet(endpoint) {
+    const res = await fetch(API_BASE + endpoint);
+    return res.json();
+  }
+
+  function fmtPct(v) { return v.toFixed(1) + "%"; }
+  function fmtNum(v) { return v.toFixed(2); }
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

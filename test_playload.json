@@ -1,0 +1,19 @@
+{
+  "batting_team": "Mumbai Indians",
+  "bowling_team": "Chennai Super Kings",
+  "venue": "Wankhede Stadium",
+  "innings": 1,
+  "over": 10,
+  "ball_in_over": 3,
+  "current_score": 85,
+  "wickets_fallen": 2,
+  "batter_sr": 140,
+  "bowler_eco": 7.5,
+  "last_6_runs": 8,
+  "last_12_runs": 16,
+  "prev_runs": 1,
+  "prev_wicket": 0,
+  "last_6_wickets": 0,
+  "striker_enc": 0,
+  "bowler_enc": 0
+}

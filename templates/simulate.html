@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Simulate — Cricket AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-inner">
+    <h1>Live Match <span class="accent">Simulation</span></h1>
+    <p>Simulate a full T20 innings ball by ball. ML predictions update every delivery.</p>
+  </div>
+</div>
+
+<div class="sim-layout">
+
+  <!-- Controls -->
+  <div class="sim-controls-bar">
+    <div class="sim-team-selects">
+      <div class="form-group compact">
+        <label>Batting Team</label>
+        <select id="sim-bat">
+          {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group compact">
+        <label>Bowling Team</label>
+        <select id="sim-bowl">
+          {% for t in teams %}
+          <option value="{{ t }}" {% if loop.index == 2 %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group compact">
+        <label>Venue</label>
+        <select id="sim-venue">
+          {% for v in venues %}
+          <option value="{{ v }}" {% if v == 'Eden Gardens' %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="sim-action-btns">
+      <button type="button" class="sim-btn primary" onclick="simNextBall()" id="next-btn">▶ Next Ball</button>
+      <button type="button" class="sim-btn" onclick="simAuto()" id="auto-btn">⚡ Auto Play</button>
+      <button type="button" class="sim-btn" onclick="simReset()">↺ Reset</button>
+    </div>
+  </div>
+
+  <!-- Scoreboard -->
+  <div class="scoreboard">
+    <div class="score-row">
+      <div>
+        <div class="score-big" id="sim-score">0 / 0</div>
+        <div class="score-sub" id="sim-overs">0.0 overs</div>
+      </div>
+      <div class="score-stats">
+        <div class="score-stat">
+          <div class="ss-val" id="sim-rr">0.00</div>
+          <div class="ss-lbl">Run Rate</div>
+        </div>
+        <div class="score-stat">
+          <div class="ss-val" id="sim-balls-left">120</div>
+          <div class="ss-lbl">Balls Left</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Commentary -->
+  <div class="commentary-box" id="commentary">
+    Press <strong>Next Ball</strong> or <strong>Auto Play</strong> to start...
+  </div>
+
+  <!-- Live Prediction -->
+  <div class="live-pred-panel" id="live-pred" style="display:none">
+    <div class="lp-title">ML Prediction — Next Ball</div>
+
+    <div class="lp-stats">
+      <div class="lp-stat">
+        <div class="lp-val red" id="lp-dot">—</div>
+        <div class="lp-lbl">Dot Ball %</div>
+      </div>
+
+      <div class="lp-stat">
+        <div class="lp-val green" id="lp-bnd">—</div>
+        <div class="lp-lbl">Boundary %</div>
+      </div>
+
+      <div class="lp-stat">
+        <div class="lp-val gold" id="lp-exp">—</div>
+        <div class="lp-lbl">Exp Runs</div>
+      </div>
+
+      <div class="lp-stat">
+        <div class="lp-val blue" id="lp-phase">—</div>
+        <div class="lp-lbl">Phase</div>
+      </div>
+    </div>
+
+    <canvas id="lp-chart"></canvas>
+  </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+
+let state = null;
+let autoTimer = null;
+let lpChart = null;
+
+function initState() {
+  state = {
+    score: 0,
+    wickets: 0,
+    balls: 0
+  };
+}
+
+function simReset() {
+  if (autoTimer) clearInterval(autoTimer);
+
+  initState();
+
+  document.getElementById("sim-score").textContent = "0 / 0";
+  document.getElementById("sim-overs").textContent = "0.0 overs";
+  document.getElementById("commentary").innerHTML =
+    'Press <strong>Next Ball</strong> or <strong>Auto Play</strong> to start...';
+
+  document.getElementById("live-pred").style.display = "none";
+
+  if (lpChart) lpChart.destroy();
+}
+
+function rollBall() {
+  if (Math.random() < 0.05) return { runs: 0, label: "W" };
+
+  const runs = [0,1,2,3,4,6];
+  const r = runs[Math.floor(Math.random() * runs.length)];
+
+  return { runs: r, label: String(r) };
+}
+
+async function simNextBall() {
+
+  if (!state) initState();
+
+  if (state.balls >= 120 || state.wickets >= 10) {
+    document.getElementById("commentary").innerHTML = "🏁 Innings Complete!";
+    return;
+  }
+
+  const outcome = rollBall();
+
+  if (outcome.label === "W") state.wickets++;
+  else state.score += outcome.runs;
+
+  state.balls++;
+
+  const over = Math.floor(state.balls / 6);
+  const ball = state.balls % 6;
+
+  document.getElementById("sim-score").textContent =
+    `${state.score} / ${state.wickets}`;
+
+  document.getElementById("sim-overs").textContent =
+    `${over}.${ball}`;
+
+  document.getElementById("commentary").textContent =
+    `Ball ${over}.${ball}: ${outcome.label}`;
+
+  fetchLivePred(over, ball);
+}
+
+async function fetchLivePred(over, ball) {
+  try {
+    const res = await fetch("/api/predict", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        batting_team: document.getElementById("sim-bat").value,
+        bowling_team: document.getElementById("sim-bowl").value,
+        venue: document.getElementById("sim-venue").value,
+        innings: 1,
+        over: over,
+        ball_in_over: ball,
+        current_score: state.score,
+        wickets_fallen: state.wickets
+      })
+    });
+
+    const d = await res.json();
+
+    if (!d.success) return;
+
+    renderLivePred(d.prediction);
+
+  } catch (err) {
+    console.log("API Error:", err);
+  }
+}
+
+function renderLivePred(data) {
+
+  document.getElementById("live-pred").style.display = "block";
+
+  document.getElementById("lp-dot").textContent =
+    ((data.dot_ball_prob ?? 0) * 100).toFixed(1) + "%";
+
+  document.getElementById("lp-bnd").textContent =
+    ((data.boundary_prob ?? 0) * 100).toFixed(1) + "%";
+
+  document.getElementById("lp-exp").textContent =
+    (data.expected_runs ?? 0).toFixed(2);
+
+  document.getElementById("lp-phase").textContent =
+    data.phase || "-";
+
+  const ctx = document.getElementById("lp-chart");
+
+  if (lpChart) lpChart.destroy();
+
+  lpChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["0","1","2","3","4","5"],
+      datasets: [{
+        data: (data.run_distribution || [0,0,0,0,0,0])
+          .map(v => (v * 100).toFixed(1)),
+        backgroundColor: ["#64748b","#3b82f6","#22d3ee","#a78bfa","#10b981","#f59e0b"]
+      }]
+    }
+  });
+}
+
+function simAuto() {
+  const btn = document.getElementById("auto-btn");
+
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    btn.textContent = "⚡ Auto Play";
+  } else {
+    btn.textContent = "⏸ Stop";
+    autoTimer = setInterval(simNextBall, 1500);
+  }
+}
+
+// INIT
+initState();
+
+</script>
+{% endblock %}

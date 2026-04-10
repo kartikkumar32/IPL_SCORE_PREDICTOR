@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Predict — Cricket AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-inner">
+    <div class="badge">⚡ 4 XGBoost Models · Live IPL Predictions</div>
+    <h1>Ball-by-Ball <span class="accent">Predictor</span></h1>
+    <p>Enter match data below to get real-time predictions from your trained machine learning models.</p>
+  </div>
+</div>
+
+<div class="predict-layout">
+
+  <!-- INPUT FORM -->
+  <aside class="form-panel">
+    <div class="panel-header">
+      <h2>Match Input</h2>
+      <div class="innings-toggle">
+       <button type="button" class="inn-btn active" id="inn1-btn" onclick="setInnings(1)">1st Innings</button>
+       <button type="button" class="inn-btn" id="inn2-btn" onclick="setInnings(2)">2nd Innings</button>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Batting Team</label>
+          <select id="f-bat">
+            {% for t in teams %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Bowling Team</label>
+          <select id="f-bowl">
+            {% for t in teams %}
+            <option value="{{ t }}" {% if loop.index == 2 %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group full">
+        <label>Venue</label>
+        <select id="f-venue">
+          {% for v in venues %}
+          <option value="{{ v }}" {% if v == 'Wankhede Stadium' %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Over</label>
+          <input type="number" id="f-over" value="14"/>
+        </div>
+        <div class="form-group">
+          <label>Ball</label>
+          <input type="number" id="f-ball" value="3"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Score</label>
+          <input type="number" id="f-score" value="108"/>
+        </div>
+        <div class="form-group">
+          <label>Wickets</label>
+          <input type="number" id="f-wkts" value="2"/>
+        </div>
+      </div>
+
+      <div id="inn2-fields" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Runs Needed</label>
+            <input type="number" id="f-need"/>
+          </div>
+          <div class="form-group">
+            <label>Balls Remaining</label>
+            <input type="number" id="f-brem"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Strike Rate</label>
+          <input type="number" id="f-bsr" value="145"/>
+        </div>
+        <div class="form-group">
+          <label>Economy</label>
+          <input type="number" id="f-beco" value="7.4"/>
+        </div>
+      </div>
+    </div>
+
+    <button class="predict-btn" onclick="runPredict()">⚡ Predict</button>
+  </aside>
+
+  <!-- RESULTS -->
+  <section class="results-panel">
+    <div id="empty-state">Run prediction to see results</div>
+    <div id="prediction-results" style="display:none">
+      <h3 id="res-teams"></h3>
+      <p id="res-score"></p>
+      <p id="res-exp"></p>
+    </div>
+  </section>
+
+</div>
+{% endblock %}   <!-- ✅ FIXED (THIS WAS MISSING) -->
+
+{% block scripts %}
+<script>
+let currentInnings = 1;
+
+function setInnings(n) {
+  currentInnings = n;
+
+  document.getElementById("inn1-btn").classList.remove("active");
+  document.getElementById("inn2-btn").classList.remove("active");
+
+  document.getElementById("inn" + n + "-btn").classList.add("active");
+
+  document.getElementById("inn2-fields").style.display =
+    (n === 2) ? "block" : "none";
+}
+
+async function runPredict() {
+  const payload = {
+    batting_team: document.getElementById("f-bat").value,
+    bowling_team: document.getElementById("f-bowl").value,
+    venue: document.getElementById("f-venue").value,
+    innings: currentInnings,
+    over: parseInt(document.getElementById("f-over").value),
+    ball_in_over: parseInt(document.getElementById("f-ball").value),
+    current_score: parseInt(document.getElementById("f-score").value),
+    wickets_fallen: parseInt(document.getElementById("f-wkts").value)
+  };
+
+  const res = await fetch("/api/predict", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const d = await res.json();
+
+  document.getElementById("empty-state").style.display = "none";
+  document.getElementById("prediction-results").style.display = "block";
+
+  document.getElementById("res-teams").textContent =
+    payload.batting_team + " vs " + payload.bowling_team;
+
+  document.getElementById("res-score").textContent =
+    payload.current_score + "/" + payload.wickets_fallen;
+
+  document.getElementById("res-exp").textContent =
+    "Expected Runs: " + (d.prediction?.expected_runs ?? 0);
+}
+</script>
+{% endblock %}
